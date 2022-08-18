@@ -1,26 +1,33 @@
 "use strict";
 
 const express = require("express");
-const { NotFoundError } = require("../expressError");
+const { NotFoundError, BadRequestError } = require("../expressError");
 const db = require("../db");
 const router = express.Router();
 
 /** GET all invoices, returns json {invoices: [{id, comp_code}, ...]} */
 router.get('/', async function (req, res) {
+
   let results = await db.query(
     `SELECT id, comp_code FROM invoices;`
   );
   let invoices = results.rows;
+
   return res.json({ invoices });
 });
 
-/** GET a company, returns json {company: {code, name, description}} */
+/** GET an invoice,
+ * returns json {invoice: {id, comp_code, amt, paid, add_date, paid_date}} */
 router.get('/:id', async function (req, res) {
+
   let results = await db.query(
     `SELECT id, amt, paid, add_date, paid_date FROM invoices
     WHERE id = $1`, [req.params.id]
   );
   let invoice = results.rows[0];
+
+  if (!invoice) throw new NotFoundError();
+
   let compResult = await db.query(
     `SELECT c.code, c.name, c.description
     FROM companies AS c
@@ -28,49 +35,64 @@ router.get('/:id', async function (req, res) {
     ON i.comp_code = c.code
     WHERE i.id = $1;`, [req.params.id]
   );
-
   invoice.company = compResult.rows[0];
+
+  return res.json({ invoice });
+});
+
+/** POST add an invoice, send {comp_code, amt}
+ * Returns: json {invoice: {id, comp_code, amt, paid, add_date, paid_date}}
+*/
+router.post('/', async function (req, res) {
+  let { comp_code, amt } = req.body;
+  // wrap in try/catch and throw badrequesterror
+
+  let results;
+
+  try {
+    results = await db.query(
+      `INSERT INTO invoices (comp_code, amt)
+      VALUES ($1, $2)
+      RETURNING id, comp_code, amt, paid, add_date, paid_date`, [comp_code, amt]
+    );
+  } catch (error) {
+    throw new BadRequestError();
+  }
+
+  let invoice = results.rows[0];
+  return res.status(201).json({ invoice });
+});
+
+/** PUT update ammount of an invoice, send {amt}
+ * returns json {invoice: {id, comp_code, amt, paid, add_date, paid_date}}
+*/
+router.put('/:id', async function (req, res) {
+
+  const id = req.params.id;
+  let { amt } = req.body;
+
+  let results = await db.query(
+    `UPDATE invoices
+    SET amt = $1
+    WHERE id = $2
+    RETURNING id, comp_code, amt, paid, add_date, paid_date`, [amt, id]
+  );
+  let invoice = results.rows[0];
+
   if (!invoice) throw new NotFoundError();
   return res.json({ invoice });
 });
 
-/** POST add a company, returns json {company: {code, name, description}}*/
-router.post('/', async function (req, res) {
-  let { code, name, description } = req.body;
-  // wrap in try/catch and throw badrequesterror
-  let results = await db.query(
-    `INSERT INTO invoices (code, name, description)
-    VALUES ($1, $2, $3)
-    RETURNING code, name, description`, [code, name, description]
-  );
-  let company = results.rows[0];
-  return res.status(201).json({ company });
-});
+/** DELETE delete an invoice, returns json {status: "deleted"} */
+router.delete('/:id', async function (req, res) {
 
-/** PUT update a company, returns json {company: {code, name, description}}*/
-router.put('/:code', async function (req, res) {
-  const code = req.params.code;
-  let { name, description } = req.body;
-  let results = await db.query(
-    `UPDATE companies
-    SET name = $1,
-        description = $2
-    WHERE code = $3
-    RETURNING code, name, description`, [ name, description, code]
-  );
-  let company = results.rows[0];
-  if (!company) throw new NotFoundError();
-  return res.json({ company });
-});
-
-/** DELETE delete a company, returns json {status: "deleted"} */
-router.delete('/:code', async function (req, res) {
   const response = await db.query(
-    `DELETE FROM companies
-    WHERE code = $1`, [req.params.code]
+    `DELETE FROM invoices
+    WHERE id = $1`, [req.params.id]
   );
+
   if (!response.rowCount) throw new NotFoundError();
-  return res.json({ status: "Deleted" });
+  return res.json({ status: "deleted" });
 });
 
 module.exports = router;

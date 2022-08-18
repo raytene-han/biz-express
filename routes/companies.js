@@ -14,14 +14,25 @@ router.get('/', async function (req, res) {
   return res.json({ companies });
 });
 
-/** GET a company, returns json {company: {code, name, description}} */
+/** GET a company,
+ *  returns json {company: {code, name, description, invoices: [id, ...]}} */
 router.get('/:code', async function (req, res) {
   let results = await db.query(
     `SELECT code, name, description FROM companies
     WHERE code = $1`, [req.params.code]
   );
   let company = results.rows[0];
+
   if (!company) throw new NotFoundError();
+
+  let invoiceRes = await db.query(
+    `SELECT id FROM invoices
+    WHERE comp_code = $1`, [req.params.code]
+  );
+
+  let invoices = invoiceRes.rows.map(i => i.id);
+  company.invoices = invoices;
+
   return res.json({ company });
 });
 
