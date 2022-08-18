@@ -5,5 +5,23 @@
   },
   "devDependencies": {
     "supertest": "^6.2.4"
-  }
+  },
+  "scripts": {
+    "start": "node server.js"
+  },
+  "name": "express-biztime",
+  "version": "1.0.0",
+  "main": "app.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rrustyn/biz-express.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/rrustyn/biz-express/issues"
+  },
+  "homepage": "https://github.com/rrustyn/biz-express#readme",
+  "description": ""
 }
