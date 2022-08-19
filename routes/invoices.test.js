@@ -6,35 +6,41 @@ const request = require("supertest");
 const app = require("../app");
 const db = require("../db");
 
-
 let testCompany;
+let testInvoice;
 
 beforeEach(async function () {
+  await db.query(`DELETE FROM invoices`);
   await db.query(`DELETE FROM companies`);
-  let results = await db.query(`
+  let compRes = await db.query(`
   INSERT INTO companies (code, name, description)
   VALUES ('apple', 'Apple', 'An apple company')
   RETURNING code, name, description`);
-  testCompany = results.rows[0]
+  testCompany = compRes.rows[0];
+  let results = await db.query(`
+  INSERT INTO invoices (comp_code, amt)
+  VALUES ('apple', '100')
+  RETURNING id, comp_code, amt, paid, add_date, paid_date`);
+  testInvoice = results.rows[0];
 });
 
 afterAll(async function () {
   await db.end();
 })
 
-describe("GET /companies", function () {
-  test("Gets list of companies", async function() {
-    const res = await request(app).get(`/companies`);
+describe("GET /invoices", function () {
+  test("Gets list of invoices", async function() {
+    const res = await request(app).get(`/invoices`);
     expect(res.body).toEqual({
-      companies: [{
-        code: testCompany.code,
-        name: testCompany.name}]})
+      invoices: [{
+        id: testInvoice.id,
+        comp_code: testInvoice.comp_code}]})
   })
 });
 
-describe("GET /companies/:code", function () {
+describe("GET /invoices/:code", function () {
   test("Get a single company", async function() {
-    const res = await request(app).get(`/companies/${testCompany.code}`);
+    const res = await request(app).get(`/invoices/${testCompany.code}`);
     expect(res.body).toEqual(
       {company: {
         code : testCompany.code,
@@ -46,7 +52,7 @@ describe("GET /companies/:code", function () {
   });
 
   test("Get a single company with invalid code", async function() {
-    const res = await request(app).get(`/companies/hello`);
+    const res = await request(app).get(`/invoices/hello`);
     expect(res.statusCode).toEqual(404);
     expect(res.body).toEqual(
       {	"error": {
@@ -57,22 +63,25 @@ describe("GET /companies/:code", function () {
   });
 });
 
-describe("POST /companies", function () {
-  test("Create a new company", async function() {
-    const res = await request(app).post(`/companies`)
-      .send({ code: 'orng', name: "Orange", description: "An orange company"});
+describe("POST /invoices", function () {
+  test("Create a new invoice", async function() {
+    const res = await request(app).post(`/invoices`)
+      .send({ comp_code: 'apple', amt: "1000"});
     expect(res.statusCode).toEqual(201);
     expect(res.body).toEqual(
-      {company: {
-        code : 'orng',
-        name : 'Orange',
-        description: 'An orange company'
+      {invoice: {
+        id : expect.any(Number),
+        comp_code : 'apple',
+        amt: "1000.00",
+        paid: false,
+        add_date: expect.any(Date),
+        paid_date: null
       }}
     );
   });
 
   test("POST with duplicate code", async function() {
-    const res = await request(app).post(`/companies`)
+    const res = await request(app).post(`/invoices`)
       .send({ code: 'apple', name: "Orange", description: "An orange company"});
     expect(res.statusCode).toEqual(400);
     expect(res.body).toEqual(
@@ -84,9 +93,9 @@ describe("POST /companies", function () {
   });
 });
 
-describe("PUT /companies/:code", function () {
+describe("PUT /invoices/:code", function () {
   test("Updates a company", async function() {
-    const res = await request(app).put(`/companies/${testCompany.code}`)
+    const res = await request(app).put(`/invoices/${testCompany.code}`)
       .send({ name: "Orange", description: "An orange company"});
     expect(res.body).toEqual(
       {company: {
@@ -98,7 +107,7 @@ describe("PUT /companies/:code", function () {
   });
 
   test("Update company with invalid code", async function() {
-    const res = await request(app).put(`/companies/hello`)
+    const res = await request(app).put(`/invoices/hello`)
       .send({ name: "Orange", description: "An orange company"});
     expect(res.statusCode).toEqual(404);
     expect(res.body).toEqual(
@@ -110,16 +119,16 @@ describe("PUT /companies/:code", function () {
   });
 });
 
-describe("DELETE /companies/:code", function () {
+describe("DELETE /invoices/:code", function () {
   test("Deletes a company", async function() {
-    const res = await request(app).delete(`/companies/${testCompany.code}`);
+    const res = await request(app).delete(`/invoices/${testCompany.code}`);
     expect(res.body).toEqual(
       {status: 'Deleted'}
     );
   });
 
   test("Delete company with invalid code", async function() {
-    const res = await request(app).delete(`/companies/hello`);
+    const res = await request(app).delete(`/invoices/hello`);
     expect(res.statusCode).toEqual(404);
     expect(res.body).toEqual(
       {	"error": {

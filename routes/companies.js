@@ -1,7 +1,7 @@
 "use strict";
 
 const express = require("express");
-const { NotFoundError } = require("../expressError");
+const { NotFoundError, BadRequestError } = require("../expressError");
 const db = require("../db");
 const router = express.Router();
 
@@ -39,13 +39,20 @@ router.get('/:code', async function (req, res) {
 /** POST add a company, returns json {company: {code, name, description}}*/
 router.post('/', async function (req, res) {
   let { code, name, description } = req.body;
-  // wrap in try/catch and throw badrequesterror
-  let results = await db.query(
-    `INSERT INTO companies (code, name, description)
-    VALUES ($1, $2, $3)
-    RETURNING code, name, description`, [code, name, description]
-  );
+  let results;
+
+  try {
+    results = await db.query(
+      `INSERT INTO companies (code, name, description)
+      VALUES ($1, $2, $3)
+      RETURNING code, name, description`, [code, name, description]
+    );
+  } catch(error) {
+    throw new BadRequestError;
+  }
+
   let company = results.rows[0];
+
   return res.status(201).json({ company });
 });
 
